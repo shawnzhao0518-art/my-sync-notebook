@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>我的同步记事本（安全版）</title>
+  <title>我的同步记事本（安全登录版）</title>
   <style>
     body { font-family: sans-serif; margin: 20px; background:#fdfdfd; }
     h1 { font-size: 20px; }
@@ -12,7 +12,7 @@
   </style>
 </head>
 <body>
-  <h1>我的同步记事本（需要登录）</h1>
+  <h1>我的同步记事本（需要 Google 登录）</h1>
   <button id="login">用 Google 登录</button>
   <textarea id="note" placeholder="在这里写笔记..."></textarea>
   <div class="status" id="status">未保存</div>
@@ -23,7 +23,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 
   <script>
-    // 你的 firebaseConfig（保持不变）
+    // 你的 firebaseConfig
     const firebaseConfig = {
       apiKey: "AIzaSyDzc55STSEVIp6D4VzuXCTswWCxHc24EE4",
       authDomain: "my-sync-notebook.firebaseapp.com",
@@ -33,7 +33,6 @@
       appId: "1:129475598049:web:c678aa19cad00bf2ef240"
     };
 
-    // 初始化 Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
     const auth = firebase.auth();
@@ -45,26 +44,28 @@
 
     let noteRef;
 
-    // 设置持久化（默认就是 LOCAL，这里明确写出来）
-    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
-
-    // 登录按钮事件
+    // 登录按钮：用 redirect 而不是 popup
     loginBtn.onclick = () => {
-      auth.signInWithPopup(provider).then(result => {
-        console.log("登录成功：", result.user.displayName);
-      }).catch(error => {
-        console.error("登录失败：", error);
-      });
+      auth.signInWithRedirect(provider);
     };
 
-    // 监听登录状态
+    // 获取重定向的登录结果
+    auth.getRedirectResult().then(result => {
+      if (result.user) {
+        console.log("登录成功：", result.user.displayName);
+      }
+    }).catch(error => {
+      console.error("登录失败：", error);
+    });
+
+    // 登录状态监听
     auth.onAuthStateChanged(user => {
       if (user) {
         loginBtn.style.display = "none";
         textarea.style.display = "block";
         status.textContent = "欢迎 " + user.displayName + "，正在同步...";
 
-        // 每个用户单独的文档
+        // 每个用户独立文档
         noteRef = db.collection("users").doc(user.uid);
 
         // 实时同步
