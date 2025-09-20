@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>我的同步记事本（调试版）</title>
+  <title>我的同步记事本（Google 登录安全版）</title>
   <style>
     body { font-family: sans-serif; margin: 20px; background:#fdfdfd; }
     h1 { font-size: 20px; }
@@ -13,7 +13,7 @@
   </style>
 </head>
 <body>
-  <h1>我的同步记事本（Google 登录 + 调试版）</h1>
+  <h1>我的同步记事本（需要 Google 登录）</h1>
   <button id="login">用 Google 登录</button>
   <textarea id="note" placeholder="在这里写笔记..."></textarea>
   <div class="status" id="status">未保存</div>
@@ -25,7 +25,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 
   <script>
-    // 🔑 你的 firebaseConfig
+    // 你的 firebaseConfig
     const firebaseConfig = {
       apiKey: "AIzaSyDzc55STSEVIp6D4VzuXCTswWCxHc24EE4",
       authDomain: "my-sync-notebook.firebaseapp.com",
@@ -52,19 +52,22 @@
 
     let noteRef;
 
-    // 登录按钮：使用 Redirect 登录，避免被 iPad Safari 拦截
+    // 登录按钮：先尝试 Popup，如果失败则用 Redirect
     loginBtn.onclick = () => {
-      log("点击了登录按钮，开始跳转 Google 登录…");
-      auth.signInWithRedirect(provider);
+      log("点击了登录按钮，尝试 Popup 登录…");
+      auth.signInWithPopup(provider).catch(error => {
+        log("Popup 登录失败，改用 Redirect 登录: " + error.message);
+        auth.signInWithRedirect(provider);
+      });
     };
 
-    // 获取登录结果
+    // 获取 Redirect 登录结果
     auth.getRedirectResult().then(result => {
       if (result.user) {
-        log("登录成功：" + result.user.displayName);
+        log("Redirect 登录成功: " + result.user.displayName);
       }
     }).catch(error => {
-      log("登录失败：" + error.message);
+      log("Redirect 登录失败: " + error.message);
     });
 
     // 登录状态监听
@@ -84,7 +87,7 @@
             textarea.value = doc.data().content || "";
             log("成功加载笔记内容。");
           } else {
-            log("没有找到笔记文档，将会新建。");
+            log("没有找到笔记，将自动新建。");
             noteRef.set({ content: "" });
           }
         });
