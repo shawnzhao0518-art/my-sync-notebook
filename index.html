@@ -4,28 +4,82 @@
   <meta charset="UTF-8">
   <title>我的同步记事本</title>
   <style>
-    body { font-family: sans-serif; padding: 20px; }
-    textarea { width: 100%; height: 200px; margin-top: 10px; }
-    button { margin: 10px 0; padding: 10px 20px; }
-    #status { margin-top: 10px; color: green; }
+    body {
+      font-family: "Segoe UI", Roboto, sans-serif;
+      background: #f0f2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+    #container {
+      background: #fff;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      width: 600px;
+      max-width: 90%;
+    }
+    h2 {
+      margin-bottom: 20px;
+      font-size: 28px;
+      color: #333;
+    }
+    input, textarea, button {
+      font-size: 18px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      padding: 10px 15px;
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 15px;
+    }
+    textarea {
+      height: 250px;
+      resize: none;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #0056b3;
+    }
+    #status {
+      margin-top: 15px;
+      font-size: 16px;
+      color: #28a745;
+    }
+    #authMsg {
+      margin-top: 10px;
+      color: red;
+      font-size: 16px;
+    }
   </style>
 </head>
 <body>
-  <h2>我的同步记事本</h2>
+  <div id="container">
+    <h2>我的同步记事本</h2>
 
-  <!-- 密码验证区域 -->
-  <div id="auth">
-    <p>请输入访问密码：</p>
-    <input type="password" id="pwdInput">
-    <button id="pwdBtn">确认</button>
-    <p id="authMsg" style="color:red;"></p>
-  </div>
+    <!-- 密码验证区域 -->
+    <div id="auth">
+      <p style="font-size:20px;">请输入访问密码：</p>
+      <input type="password" id="pwdInput" placeholder="输入密码">
+      <button id="pwdBtn">确认</button>
+      <p id="authMsg"></p>
+    </div>
 
-  <!-- 应用主界面 -->
-  <div id="app" style="display:none;">
-    <textarea id="note" placeholder="在这里写下你的笔记..."></textarea>
-    <button id="saveBtn">保存笔记</button>
-    <div id="status"></div>
+    <!-- 应用主界面 -->
+    <div id="app" style="display:none;">
+      <textarea id="note" placeholder="在这里写下你的笔记..."></textarea>
+      <button id="saveBtn">💾 保存笔记</button>
+      <div id="status"></div>
+    </div>
   </div>
 
   <script type="module">
@@ -51,13 +105,12 @@
         localStorage.setItem("notebook_auth", PASSWORD);
         unlockApp();
       } else {
-        document.getElementById("authMsg").innerText = "密码错误";
+        document.getElementById("authMsg").innerText = "❌ 密码错误";
       }
     };
 
     // === Firebase 初始化 + 笔记逻辑 ===
     async function initFirebaseApp() {
-      // Firebase SDK 导入
       const { initializeApp } = await import("https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js");
       const { getFirestore, doc, setDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js");
 
@@ -65,7 +118,7 @@
         apiKey: "AIzaSyAT4k8co1PBwThkZFVEjdvPD4N-DRSP_fI",
         authDomain: "my-sync-notebook-3d134.firebaseapp.com",
         projectId: "my-sync-notebook-3d134",
-        storageBucket: "my-sync-notebook-3d134.appspot.com", // ✅ 修正
+        storageBucket: "my-sync-notebook-3d134.appspot.com",
         messagingSenderId: "554261227887",
         appId: "1:554261227887:web:aed7afa4314adf1fbc209a"
       };
@@ -82,7 +135,7 @@
       onSnapshot(noteRef, (docSnap) => {
         if (docSnap.exists()) {
           noteEl.value = docSnap.data().content || "";
-          statusEl.innerText = "笔记已同步 ✅";
+          statusEl.innerText = "✅ 笔记已同步";
         } else {
           statusEl.innerText = "暂无笔记";
         }
@@ -94,7 +147,7 @@
           content: noteEl.value,
           updatedAt: new Date()
         });
-        statusEl.innerText = "笔记已保存 ✅";
+        statusEl.innerText = "✅ 笔记已保存";
       };
     }
   </script>
