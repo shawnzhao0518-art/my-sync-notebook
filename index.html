@@ -2,20 +2,22 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>我的同步记事本（安全登录版）</title>
+  <title>我的同步记事本（调试版）</title>
   <style>
     body { font-family: sans-serif; margin: 20px; background:#fdfdfd; }
     h1 { font-size: 20px; }
-    textarea { width: 100%; height: 70vh; font-size: 16px; padding: 10px; display:none; }
+    textarea { width: 100%; height: 60vh; font-size: 16px; padding: 10px; display:none; }
     #login { padding: 10px 20px; font-size: 16px; }
     .status { font-size: 12px; color: gray; }
+    #log { margin-top: 20px; color: red; font-size: 14px; white-space: pre-line; }
   </style>
 </head>
 <body>
-  <h1>我的同步记事本（需要 Google 登录）</h1>
+  <h1>我的同步记事本（Google 登录 + 调试版）</h1>
   <button id="login">用 Google 登录</button>
   <textarea id="note" placeholder="在这里写笔记..."></textarea>
   <div class="status" id="status">未保存</div>
+  <div id="log">日志输出区：</div>
 
   <!-- Firebase SDK -->
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
@@ -23,7 +25,7 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 
   <script>
-    // 你的 firebaseConfig
+    // 🔑 你的 firebaseConfig
     const firebaseConfig = {
       apiKey: "AIzaSyDzc55STSEVIp6D4VzuXCTswWCxHc24EE4",
       authDomain: "my-sync-notebook.firebaseapp.com",
@@ -41,21 +43,28 @@
     const textarea = document.getElementById("note");
     const status = document.getElementById("status");
     const loginBtn = document.getElementById("login");
+    const logDiv = document.getElementById("log");
+
+    function log(msg) {
+      console.log(msg);
+      logDiv.innerText += "\n" + msg;
+    }
 
     let noteRef;
 
-    // 登录按钮：用 redirect 而不是 popup
+    // 登录按钮：使用 Redirect 登录，避免被 iPad Safari 拦截
     loginBtn.onclick = () => {
+      log("点击了登录按钮，开始跳转 Google 登录…");
       auth.signInWithRedirect(provider);
     };
 
-    // 获取重定向的登录结果
+    // 获取登录结果
     auth.getRedirectResult().then(result => {
       if (result.user) {
-        console.log("登录成功：", result.user.displayName);
+        log("登录成功：" + result.user.displayName);
       }
     }).catch(error => {
-      console.error("登录失败：", error);
+      log("登录失败：" + error.message);
     });
 
     // 登录状态监听
@@ -63,7 +72,8 @@
       if (user) {
         loginBtn.style.display = "none";
         textarea.style.display = "block";
-        status.textContent = "欢迎 " + user.displayName + "，正在同步...";
+        status.textContent = "欢迎 " + user.displayName + "，正在同步…";
+        log("已登录用户：" + user.email);
 
         // 每个用户独立文档
         noteRef = db.collection("users").doc(user.uid);
@@ -72,6 +82,10 @@
         noteRef.onSnapshot(doc => {
           if (doc.exists) {
             textarea.value = doc.data().content || "";
+            log("成功加载笔记内容。");
+          } else {
+            log("没有找到笔记文档，将会新建。");
+            noteRef.set({ content: "" });
           }
         });
 
@@ -82,14 +96,16 @@
           timeout = setTimeout(() => {
             noteRef.set({ content: textarea.value });
             status.textContent = "已保存";
+            log("笔记已保存。");
           }, 500);
-          status.textContent = "保存中...";
+          status.textContent = "保存中…";
         });
 
       } else {
         loginBtn.style.display = "block";
         textarea.style.display = "none";
         status.textContent = "请先登录";
+        log("当前没有用户登录。");
       }
     });
   </script>
