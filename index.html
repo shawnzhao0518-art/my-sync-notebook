@@ -1,116 +1,110 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <title>我的同步记事本（Google 登录安全版）</title>
+  <title>我的同步记事本</title>
   <style>
-    body { font-family: sans-serif; margin: 20px; background:#fdfdfd; }
-    h1 { font-size: 20px; }
-    textarea { width: 100%; height: 60vh; font-size: 16px; padding: 10px; display:none; }
-    #login { padding: 10px 20px; font-size: 16px; }
-    .status { font-size: 12px; color: gray; }
-    #log { margin-top: 20px; color: red; font-size: 14px; white-space: pre-line; }
+    body { font-family: sans-serif; padding: 20px; }
+    textarea { width: 100%; height: 200px; margin-top: 10px; }
+    button { margin: 10px 0; padding: 10px 20px; font-size: 16px; }
+    #status { color: red; margin-top: 10px; }
   </style>
 </head>
 <body>
-  <h1>我的同步记事本（需要 Google 登录）</h1>
-  <button id="login">用 Google 登录</button>
-  <textarea id="note" placeholder="在这里写笔记..."></textarea>
-  <div class="status" id="status">未保存</div>
-  <div id="log">日志输出区：</div>
+  <h2>我的同步记事本（需要 Google 登录）</h2>
+  <button id="loginBtn">用 Google 登录</button>
+  <button id="logoutBtn" style="display:none;">退出登录</button>
+  <p id="user"></p>
 
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <textarea id="note" placeholder="在这里输入你的笔记..."></textarea>
+  <button id="saveBtn">保存笔记</button>
+
+  <div id="status"></div>
+
+  <!-- Firebase SDK (兼容版，适合单页 HTML) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
   <script>
-    // 你的 firebaseConfig
+    // 你的 Firebase 配置（去控制台复制出来，注意 storageBucket 后缀要是 appspot.com）
     const firebaseConfig = {
-      apiKey: "AIzaSyDzc55STSEVIp6D4VzuXCTswWCxHc24EE4",
+      apiKey: "AIzaSyDzC55TSEVIp6D4VvzuXCTsvWCxH2c4EE4",
       authDomain: "my-sync-notebook.firebaseapp.com",
       projectId: "my-sync-notebook",
       storageBucket: "my-sync-notebook.appspot.com",
-      messagingSenderId: "129475598049",
-      appId: "1:129475598049:web:c678aa19cad00bf2ef240"
+      messagingSenderId: "129475590849",
+      appId: "1:129475590849:web:c678aa19cad00b9f2ef240"
     };
 
+    // 初始化 Firebase
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
     const auth = firebase.auth();
-    const provider = new firebase.auth.GoogleAuthProvider();
+    const db = firebase.firestore();
 
-    const textarea = document.getElementById("note");
-    const status = document.getElementById("status");
-    const loginBtn = document.getElementById("login");
-    const logDiv = document.getElementById("log");
+    const loginBtn = document.getElementById("loginBtn");
+    const logoutBtn = document.getElementById("logoutBtn");
+    const noteEl = document.getElementById("note");
+    const saveBtn = document.getElementById("saveBtn");
+    const statusEl = document.getElementById("status");
+    const userEl = document.getElementById("user");
 
-    function log(msg) {
-      console.log(msg);
-      logDiv.innerText += "\n" + msg;
-    }
+    let currentUser = null;
 
-    let noteRef;
-
-    // 登录按钮：先尝试 Popup，如果失败则用 Redirect
+    // 登录事件
     loginBtn.onclick = () => {
-      log("点击了登录按钮，尝试 Popup 登录…");
-      auth.signInWithPopup(provider).catch(error => {
-        log("Popup 登录失败，改用 Redirect 登录: " + error.message);
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider).catch(err => {
+        statusEl.innerText = "Popup 登录失败，改用 Redirect 登录...";
         auth.signInWithRedirect(provider);
       });
     };
 
-    // 获取 Redirect 登录结果
-    auth.getRedirectResult().then(result => {
-      if (result.user) {
-        log("Redirect 登录成功: " + result.user.displayName);
-      }
-    }).catch(error => {
-      log("Redirect 登录失败: " + error.message);
-    });
+    // 登出事件
+    logoutBtn.onclick = () => {
+      auth.signOut();
+    };
 
-    // 登录状态监听
+    // 监听登录状态
     auth.onAuthStateChanged(user => {
       if (user) {
+        currentUser = user;
         loginBtn.style.display = "none";
-        textarea.style.display = "block";
-        status.textContent = "欢迎 " + user.displayName + "，正在同步…";
-        log("已登录用户：" + user.email);
-
-        // 每个用户独立文档
-        noteRef = db.collection("users").doc(user.uid);
-
-        // 实时同步
-        noteRef.onSnapshot(doc => {
-          if (doc.exists) {
-            textarea.value = doc.data().content || "";
-            log("成功加载笔记内容。");
-          } else {
-            log("没有找到笔记，将自动新建。");
-            noteRef.set({ content: "" });
-          }
-        });
-
-        // 输入时保存
-        let timeout;
-        textarea.addEventListener("input", () => {
-          clearTimeout(timeout);
-          timeout = setTimeout(() => {
-            noteRef.set({ content: textarea.value });
-            status.textContent = "已保存";
-            log("笔记已保存。");
-          }, 500);
-          status.textContent = "保存中…";
-        });
-
+        logoutBtn.style.display = "inline-block";
+        userEl.innerText = "已登录：" + user.email;
+        statusEl.innerText = "正在加载笔记...";
+        loadNote();
       } else {
-        loginBtn.style.display = "block";
-        textarea.style.display = "none";
-        status.textContent = "请先登录";
-        log("当前没有用户登录。");
+        currentUser = null;
+        loginBtn.style.display = "inline-block";
+        logoutBtn.style.display = "none";
+        userEl.innerText = "";
+        noteEl.value = "";
+        statusEl.innerText = "请先登录。";
       }
     });
+
+    // 保存笔记
+    saveBtn.onclick = async () => {
+      if (!currentUser) return alert("请先登录！");
+      await db.collection("notes").doc(currentUser.uid).set({
+        content: noteEl.value,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      statusEl.innerText = "笔记已保存 ✅";
+    };
+
+    // 加载笔记
+    async function loadNote() {
+      if (!currentUser) return;
+      const doc = await db.collection("notes").doc(currentUser.uid).get();
+      if (doc.exists) {
+        noteEl.value = doc.data().content;
+        statusEl.innerText = "笔记已加载 ✅";
+      } else {
+        statusEl.innerText = "没有保存的笔记，请输入后点击保存。";
+      }
+    }
   </script>
 </body>
 </html>
