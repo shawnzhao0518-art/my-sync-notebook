@@ -15,11 +15,11 @@
   <textarea id="note" placeholder="在这里写笔记..."></textarea>
   <div class="status" id="status">未保存</div>
 
-  <!-- Firebase SDK -->
+  <!-- Firebase SDK (兼容版) -->
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
   <script>
-    // 这是你控制台生成的 firebaseConfig
+    // 这是你在控制台生成的配置
     const firebaseConfig = {
       apiKey: "AIzaSyDzc55STSEVIp6D4VzuXCTswWCxHc24EE4",
       authDomain: "my-sync-notebook.firebaseapp.com",
@@ -37,14 +37,14 @@
     const textarea = document.getElementById("note");
     const status = document.getElementById("status");
 
-    // 🔄 实时同步监听
+    // 🔄 实时同步：监听数据库变化
     noteRef.onSnapshot(doc => {
       if (doc.exists) {
         textarea.value = doc.data().content;
       }
     });
 
-    // ⌨️ 输入时保存到数据库
+    // ⌨️ 输入时自动保存（0.5 秒防抖）
     let timeout;
     textarea.addEventListener("input", () => {
       clearTimeout(timeout);
