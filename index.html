@@ -2,24 +2,28 @@
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>我的同步记事本</title>
+  <title>我的同步记事本（安全版）</title>
   <style>
     body { font-family: sans-serif; margin: 20px; background:#fdfdfd; }
     h1 { font-size: 20px; }
-    textarea { width: 100%; height: 80vh; font-size: 16px; padding: 10px; }
+    textarea { width: 100%; height: 70vh; font-size: 16px; padding: 10px; display:none; }
+    #login { padding: 10px 20px; font-size: 16px; }
     .status { font-size: 12px; color: gray; }
   </style>
 </head>
 <body>
-  <h1>我的同步记事本</h1>
+  <h1>我的同步记事本（需要登录）</h1>
+  <button id="login">用 Google 登录</button>
   <textarea id="note" placeholder="在这里写笔记..."></textarea>
   <div class="status" id="status">未保存</div>
 
-  <!-- Firebase SDK (兼容版) -->
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+
   <script>
-    // 这是你在控制台生成的配置
+    // 你的 firebaseConfig（保持不变）
     const firebaseConfig = {
       apiKey: "AIzaSyDzc55STSEVIp6D4VzuXCTswWCxHc24EE4",
       authDomain: "my-sync-notebook.firebaseapp.com",
@@ -32,27 +36,60 @@
     // 初始化 Firebase
     firebase.initializeApp(firebaseConfig);
     const db = firebase.firestore();
+    const auth = firebase.auth();
+    const provider = new firebase.auth.GoogleAuthProvider();
 
-    const noteRef = db.collection("notes").doc("mainNote");
     const textarea = document.getElementById("note");
     const status = document.getElementById("status");
+    const loginBtn = document.getElementById("login");
 
-    // 🔄 实时同步：监听数据库变化
-    noteRef.onSnapshot(doc => {
-      if (doc.exists) {
-        textarea.value = doc.data().content;
+    let noteRef;
+
+    // 设置持久化（默认就是 LOCAL，这里明确写出来）
+    auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+    // 登录按钮事件
+    loginBtn.onclick = () => {
+      auth.signInWithPopup(provider).then(result => {
+        console.log("登录成功：", result.user.displayName);
+      }).catch(error => {
+        console.error("登录失败：", error);
+      });
+    };
+
+    // 监听登录状态
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        loginBtn.style.display = "none";
+        textarea.style.display = "block";
+        status.textContent = "欢迎 " + user.displayName + "，正在同步...";
+
+        // 每个用户单独的文档
+        noteRef = db.collection("users").doc(user.uid);
+
+        // 实时同步
+        noteRef.onSnapshot(doc => {
+          if (doc.exists) {
+            textarea.value = doc.data().content || "";
+          }
+        });
+
+        // 输入时保存
+        let timeout;
+        textarea.addEventListener("input", () => {
+          clearTimeout(timeout);
+          timeout = setTimeout(() => {
+            noteRef.set({ content: textarea.value });
+            status.textContent = "已保存";
+          }, 500);
+          status.textContent = "保存中...";
+        });
+
+      } else {
+        loginBtn.style.display = "block";
+        textarea.style.display = "none";
+        status.textContent = "请先登录";
       }
-    });
-
-    // ⌨️ 输入时自动保存（0.5 秒防抖）
-    let timeout;
-    textarea.addEventListener("input", () => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => {
-        noteRef.set({ content: textarea.value });
-        status.textContent = "已保存";
-      }, 500);
-      status.textContent = "保存中...";
     });
   </script>
 </body>
