@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>我的同步记事本</title>
+  <style>
+    body { font-family: sans-serif; margin: 20px; background:#fdfdfd; }
+    h1 { font-size: 20px; }
+    textarea { width: 100%; height: 80vh; font-size: 16px; padding: 10px; }
+    .status { font-size: 12px; color: gray; }
+  </style>
+</head>
+<body>
+  <h1>我的同步记事本</h1>
+  <textarea id="note" placeholder="在这里写笔记..."></textarea>
+  <div class="status" id="status">未保存</div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+  <script>
+    // 这是你控制台生成的 firebaseConfig
+    const firebaseConfig = {
+      apiKey: "AIzaSyDzc55STSEVIp6D4VzuXCTswWCxHc24EE4",
+      authDomain: "my-sync-notebook.firebaseapp.com",
+      projectId: "my-sync-notebook",
+      storageBucket: "my-sync-notebook.appspot.com",
+      messagingSenderId: "129475598049",
+      appId: "1:129475598049:web:c678aa19cad00bf2ef240"
+    };
+
+    // 初始化 Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    const noteRef = db.collection("notes").doc("mainNote");
+    const textarea = document.getElementById("note");
+    const status = document.getElementById("status");
+
+    // 🔄 实时同步监听
+    noteRef.onSnapshot(doc => {
+      if (doc.exists) {
+        textarea.value = doc.data().content;
+      }
+    });
+
+    // ⌨️ 输入时保存到数据库
+    let timeout;
+    textarea.addEventListener("input", () => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => {
+        noteRef.set({ content: textarea.value });
+        status.textContent = "已保存";
+      }, 500);
+      status.textContent = "保存中...";
+    });
+  </script>
+</body>
+</html>
