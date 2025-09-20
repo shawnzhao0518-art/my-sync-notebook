@@ -13,56 +13,90 @@
 <body>
   <h2>我的同步记事本</h2>
 
-  <textarea id="note" placeholder="在这里写下你的笔记..."></textarea>
-  <button id="saveBtn">保存笔记</button>
-  <div id="status"></div>
+  <!-- 密码验证区域 -->
+  <div id="auth">
+    <p>请输入访问密码：</p>
+    <input type="password" id="pwdInput">
+    <button id="pwdBtn">确认</button>
+    <p id="authMsg" style="color:red;"></p>
+  </div>
+
+  <!-- 应用主界面 -->
+  <div id="app" style="display:none;">
+    <textarea id="note" placeholder="在这里写下你的笔记..."></textarea>
+    <button id="saveBtn">保存笔记</button>
+    <div id="status"></div>
+  </div>
 
   <script type="module">
-    // 引入 Firebase 模块
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js";
-    import { getFirestore, doc, getDoc, setDoc, onSnapshot } 
-      from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
+    // === 密码逻辑 ===
+    const PASSWORD = "1"; // 🔑 密码固定为 1
+    const stored = localStorage.getItem("notebook_auth");
+    const authDiv = document.getElementById("auth");
+    const appDiv = document.getElementById("app");
 
-    // 你的 Firebase 配置
-    const firebaseConfig = {
-      apiKey: "AIzaSyAT4k8co1PBwThkZFVEjdvPD4N-DRSP_fI",
-      authDomain: "my-sync-notebook-3d134.firebaseapp.com",
-      projectId: "my-sync-notebook-3d134",
-      storageBucket: "my-sync-notebook-3d134.appspot.com", // ✅ 已修正
-      messagingSenderId: "554261227887",
-      appId: "1:554261227887:web:aed7afa4314adf1fbc209a"
-    };
+    function unlockApp() {
+      authDiv.style.display = "none";
+      appDiv.style.display = "block";
+      initFirebaseApp(); // 验证通过后再加载 Firebase
+    }
 
-    // 初始化 Firebase
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
+    if (stored === PASSWORD) {
+      unlockApp();
+    }
 
-    // 笔记元素
-    const noteEl = document.getElementById("note");
-    const statusEl = document.getElementById("status");
-    const saveBtn = document.getElementById("saveBtn");
-
-    // 文档位置：集合 notes / 文档 shared
-    const noteRef = doc(db, "notes", "shared");
-
-    // 实时监听
-    onSnapshot(noteRef, (docSnap) => {
-      if (docSnap.exists()) {
-        noteEl.value = docSnap.data().content || "";
-        statusEl.innerText = "笔记已同步 ✅";
+    document.getElementById("pwdBtn").onclick = () => {
+      const input = document.getElementById("pwdInput").value;
+      if (input === PASSWORD) {
+        localStorage.setItem("notebook_auth", PASSWORD);
+        unlockApp();
       } else {
-        statusEl.innerText = "暂无笔记";
+        document.getElementById("authMsg").innerText = "密码错误";
       }
-    });
-
-    // 保存
-    saveBtn.onclick = async () => {
-      await setDoc(noteRef, {
-        content: noteEl.value,
-        updatedAt: new Date()
-      });
-      statusEl.innerText = "笔记已保存 ✅";
     };
+
+    // === Firebase 初始化 + 笔记逻辑 ===
+    async function initFirebaseApp() {
+      // Firebase SDK 导入
+      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js");
+      const { getFirestore, doc, setDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js");
+
+      const firebaseConfig = {
+        apiKey: "AIzaSyAT4k8co1PBwThkZFVEjdvPD4N-DRSP_fI",
+        authDomain: "my-sync-notebook-3d134.firebaseapp.com",
+        projectId: "my-sync-notebook-3d134",
+        storageBucket: "my-sync-notebook-3d134.appspot.com", // ✅ 修正
+        messagingSenderId: "554261227887",
+        appId: "1:554261227887:web:aed7afa4314adf1fbc209a"
+      };
+
+      const app = initializeApp(firebaseConfig);
+      const db = getFirestore(app);
+
+      const noteEl = document.getElementById("note");
+      const statusEl = document.getElementById("status");
+      const saveBtn = document.getElementById("saveBtn");
+      const noteRef = doc(db, "notes", "shared");
+
+      // 实时监听
+      onSnapshot(noteRef, (docSnap) => {
+        if (docSnap.exists()) {
+          noteEl.value = docSnap.data().content || "";
+          statusEl.innerText = "笔记已同步 ✅";
+        } else {
+          statusEl.innerText = "暂无笔记";
+        }
+      });
+
+      // 保存
+      saveBtn.onclick = async () => {
+        await setDoc(noteRef, {
+          content: noteEl.value,
+          updatedAt: new Date()
+        });
+        statusEl.innerText = "笔记已保存 ✅";
+      };
+    }
   </script>
 </body>
 </html>
