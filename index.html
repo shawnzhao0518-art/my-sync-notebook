@@ -74,7 +74,7 @@
       <p id="authMsg"></p>
     </div>
 
-    <!-- 应用主界面 -->
+    <!-- 主界面 -->
     <div id="app" style="display:none;">
       <textarea id="note" placeholder="在这里写下你的笔记..."></textarea>
       <button id="saveBtn">💾 保存笔记</button>
@@ -83,8 +83,8 @@
   </div>
 
   <script type="module">
-    // === 密码逻辑 ===
-    const PASSWORD = "910729"; // 🔑 密码固定为 1
+    // ========== 密码逻辑 ==========
+    const PASSWORD = "910729";
     const stored = localStorage.getItem("notebook_auth");
     const authDiv = document.getElementById("auth");
     const appDiv = document.getElementById("app");
@@ -92,12 +92,10 @@
     function unlockApp() {
       authDiv.style.display = "none";
       appDiv.style.display = "block";
-      initFirebaseApp(); // 验证通过后再加载 Firebase
+      initSupabase(); // 验证通过后加载 Supabase
     }
 
-    if (stored === PASSWORD) {
-      unlockApp();
-    }
+    if (stored === PASSWORD) unlockApp();
 
     document.getElementById("pwdBtn").onclick = () => {
       const input = document.getElementById("pwdInput").value;
@@ -109,46 +107,82 @@
       }
     };
 
-    // === Firebase 初始化 + 笔记逻辑 ===
-    async function initFirebaseApp() {
-      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/12.3.0/firebase-app.js");
-      const { getFirestore, doc, setDoc, onSnapshot } = await import("https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js");
+    // ========== Supabase 初始化 ==========
+    async function initSupabase() {
+      const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
 
-      const firebaseConfig = {
-        apiKey: "AIzaSyAT4k8co1PBwThkZFVEjdvPD4N-DRSP_fI",
-        authDomain: "my-sync-notebook-3d134.firebaseapp.com",
-        projectId: "my-sync-notebook-3d134",
-        storageBucket: "my-sync-notebook-3d134.appspot.com",
-        messagingSenderId: "554261227887",
-        appId: "1:554261227887:web:aed7afa4314adf1fbc209a"
-      };
+      const SUPABASE_URL = "https://tyvpbnabtbirkhcserys.supabase.co";
+      const SUPABASE_KEY = "sb_publishable_T68GKUXlUyj8P27tNvByCA_tXNTjMjz";
 
-      const app = initializeApp(firebaseConfig);
-      const db = getFirestore(app);
+      const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
       const noteEl = document.getElementById("note");
       const statusEl = document.getElementById("status");
       const saveBtn = document.getElementById("saveBtn");
-      const noteRef = doc(db, "notes", "shared");
 
-      // 实时监听
-      onSnapshot(noteRef, (docSnap) => {
-        if (docSnap.exists()) {
-          noteEl.value = docSnap.data().content || "";
-          statusEl.innerText = "✅ 笔记已同步";
-        } else {
-          statusEl.innerText = "暂无笔记";
+      // 获取唯一一条笔记
+      async function loadNote() {
+        const { data, error } = await supabase
+          .from("notes")
+          .select("id, content")
+          .limit(1)
+          .maybeSingle();
+
+        if (error) {
+          statusEl.innerText = "⚠️ 加载失败：" + error.message;
+          return;
         }
-      });
 
-      // 保存
+        if (data) {
+          noteEl.value = data.content || "";
+          statusEl.innerText = "✅ 笔记已同步";
+          subscribeRealtime(data.id);
+        } else {
+          // 如果还没有笔记，则自动创建
+          const { data: newNote } = await supabase
+            .from("notes")
+            .insert([{ content: "" }])
+            .select()
+            .single();
+          noteEl.value = "";
+          subscribeRealtime(newNote.id);
+        }
+      }
+
+      // 监听数据库实时变化
+      function subscribeRealtime(noteId) {
+        supabase
+          .channel("notes-changes")
+          .on(
+            "postgres_changes",
+            { event: "UPDATE", schema: "public", table: "notes", filter: `id=eq.${noteId}` },
+            (payload) => {
+              if (payload.new) {
+                noteEl.value = payload.new.content;
+                statusEl.innerText = "🔄 已自动同步";
+              }
+            }
+          )
+          .subscribe();
+      }
+
+      // 保存按钮
       saveBtn.onclick = async () => {
-        await setDoc(noteRef, {
-          content: noteEl.value,
-          updatedAt: new Date()
-        });
-        statusEl.innerText = "✅ 笔记已保存";
+        const { data, error } = await supabase
+          .from("notes")
+          .update({ content: noteEl.value, updated_at: new Date() })
+          .order("updated_at", { ascending: false })
+          .limit(1);
+
+        if (error) {
+          statusEl.innerText = "❌ 保存失败：" + error.message;
+        } else {
+          statusEl.innerText = "✅ 已保存";
+        }
       };
+
+      // 初始加载
+      loadNote();
     }
   </script>
 </body>
